@@ -1,19 +1,34 @@
 from appium import webdriver
-from selenium.webdriver.common.by import By
-
+from devices import *
 from config import *
-from basic import *
+from server import AppiumServer
 
 
 def test():
-    device_list = get_devices()
-    temp_device = device_list[1]
-    caps = get_caps(temp_device["platformVersion"], temp_device["deviceName"], trivia_packageName, trivia_activityName)
+    devices = Devices.get_devices()
+    device_num = len(devices)
+    appium_server = AppiumServer()
+    appium_server.start_servers(server_num=device_num)
+
+    print(len(devices))
+    print(devices)
+    device = devices[0]
+    caps = get_caps(device["platformVersion"], device["deviceName"], trivia_info)
     driver = webdriver.Remote("http://localhost:4723/wd/hub", caps)
     driver.implicitly_wait(5)
+
+    # for device in devices:
+    #     caps = get_caps(device["platformVersion"], device["deviceName"],
+    #                     trivia_packageName, trivia_activityName)
+    #     driver = webdriver.Remote("http://localhost:4723/wd/hub", caps)
+    #     driver.implicitly_wait(5)
+
     root = driver.find_element(By.XPATH, "/hierarchy/*")
-    DFS(root)
+
+    # DFS(root)
+
     print("-------------------")
+
     es1 = root.find_element(By.ID, "titleConstraint")
     print(es1.id)
     print(es1.text)
@@ -26,5 +41,10 @@ def test():
     driver.quit()
 
 
+def test1():
+    devices = Devices()
+    devices.test()
+
+
 if __name__ == '__main__':
-    test()
+    test1()

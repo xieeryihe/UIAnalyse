@@ -3,10 +3,13 @@ douYin_activityName = ".main.MainActivity"
 
 trivia_packageName = "com.example.android.navigation"
 trivia_activityName = ".MainActivity"
+trivia_info = {
+    "packageName": "com.example.android.navigation",
+    "activityName": ".MainActivity"
+}
 
 bilibili_packageName = "tv.danmaku.bili"
 bilibili_activityName = ".MainActivityV2"
 
 zhihu_packageName = "com.zhihu.android"
 zhihu_activityName = ".app.ui.activity.MainActivity"
-
