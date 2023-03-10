@@ -141,6 +141,7 @@ class Devices:
 
         print("-------------------stop_drivers-----------------")
 
+
     def test(self):
         self.start_drivers(trivia_info)
         self.stop_drivers()
