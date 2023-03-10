@@ -1,13 +1,12 @@
 import os
 import re
-import cv2
-from selenium.webdriver.common.by import By
+
 from appium import webdriver
-from config import trivia_info
-from server import *
-import io
-import numpy as np
-from PIL import Image
+from selenium.webdriver.common.by import By
+
+from conf.config import trivia_info
+from diff.server import *
+from diff.image import *
 
 
 def get_caps(platformVersion, deviceName, app_info):
@@ -41,11 +40,13 @@ class Device:
     """
     platformVersion = ""
     deviceName = ""
+    SAP = None
     driver = None
 
-    def __init__(self, platformVersion="", deviceName="", driver=None):
+    def __init__(self, platformVersion="", deviceName="", SAP=None, driver=None):
         self.platformVersion = platformVersion
         self.deviceName = deviceName
+        self.SAP = SAP
         self.driver = driver
 
 
@@ -102,7 +103,7 @@ class Devices:
         # print(device_list)
         return device_list
 
-    def start(self, app_info):
+    def start_drivers(self, app_info):
         """
         相当于初始化设备并连接到服务器，打开对应的应用
         :param app_info:待启动的app信息，一般形式为：
@@ -125,23 +126,24 @@ class Devices:
             driver = webdriver.Remote("http://{}:{}/wd/hub".format(host, port), caps)
 
             driver.implicitly_wait(5)
-            device = Device(platform_version, device_name, driver)
+            device = Device(platform_version, device_name, server_info, driver)
             self.devices.append(device)
         # root = driver.find_element(By.XPATH, "/hierarchy/*")
 
-    def stop(self):
+    def stop_drivers(self):
         """
         停用所有device的driver
         :return:
         """
         for device in self.devices:
             device.driver.quit()
+            print(device.SAP)
 
-        print("-------------------stop-----------------")
+        print("-------------------stop_drivers-----------------")
 
     def test(self):
-        self.start(trivia_info)
-        self.stop()
+        self.start_drivers(trivia_info)
+        self.stop_drivers()
 
     def test_single(self):
         driver = self.devices[0].driver
@@ -159,18 +161,18 @@ class Devices:
         driver1 = self.devices[1].driver
         img0_byte = driver0.find_element(By.ID, "titleImage").screenshot_as_png
         img1_byte = driver1.find_element(By.ID, "titleImage").screenshot_as_png
+        byte2image(img0_byte).save("res/Image/0.png")
+        byte2image(img1_byte).save("res/Image/1.png")
+        # print(type(img0_byte))  # <class 'bytes'>
+
         img0 = byte2image(img0_byte)
         img1 = byte2image(img1_byte)
         print(img0.size)
         print(img1.size)
 
-        img0_cv = byte2cv(img0_byte)
-        img1_cv = byte2cv(img1_byte)
-        result = cv2.matchTemplate(img0_cv, img1_cv, cv2.TM_SQDIFF_NORMED)
-        min_value, max_value, min_location, max_location = cv2.minMaxLoc(result)
-        print(min_value, max_value)
+        image_compare_test(img0_byte, img1_byte)
 
-        # TODO:将两个图片resize成一样的大的，然后调用cv库比对。
+        print("test over-----------------")
 
 
 def temp():
@@ -192,38 +194,3 @@ def temp():
     byte2image(image_byte).save("./Image/a.png")  # 二进制图片转png
     src = byte2cv(image_byte)
     print(src)
-
-
-def image2byte(image):
-    """
-    图片转byte
-    image: 必须是PIL格式
-    image_bytes: 二进制
-    """
-    # 创建一个字节流管道
-    img_bytes = io.BytesIO()
-    # 把PNG格式转换成的四通道转成RGB的三通道，然后再保存成jpg格式
-    image = image.convert("RGB")
-    # 将图片数据存入字节流管道， format可以按照具体文件的格式填写
-    image.save(img_bytes, format="JPEG")
-    # 从字节流管道中获取二进制
-    image_bytes = img_bytes.getvalue()
-    return image_bytes
-
-
-def byte2image(byte_data):
-    """
-    byte转为图片
-    byte_data: 二进制
-    """
-    image = Image.open(io.BytesIO(byte_data))
-    return image
-
-
-def byte2cv(im):
-    """
-    二进制图片转cv2
-    :param im: 二进制图片数据，bytes
-    :return: cv2图像，numpy.ndarray
-    """
-    return cv2.imdecode(np.array(bytearray(im), dtype='uint8'), cv2.IMREAD_UNCHANGED)  # 从二进制图片数据中读取

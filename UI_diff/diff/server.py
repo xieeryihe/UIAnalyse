@@ -2,7 +2,14 @@ import subprocess
 
 
 class AppiumServer:
-    """封装AppiumServer"""
+    """
+    封装AppiumServer
+    SAP中的元素为字典，一般格式如下：
+    {
+        "host": self.host,
+        "port": temp_port
+    }
+    """
     host = "127.0.0.1"
     base_port = 4723
     SAP_list = []  # 服务访问点（service access point）列表
@@ -33,3 +40,4 @@ class AppiumServer:
             }
             self.SAP_list.append(temp_dict)
         return self.SAP_list
+
