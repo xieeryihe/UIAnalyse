@@ -26,3 +26,5 @@ caps_example = {
     "newCommandTimeout": 6000,
     "automationName": "UiAutomator2"
 }
+
+SSIM_threshold = 0.9  # SSIM值超过0.9才认为两张图片相同

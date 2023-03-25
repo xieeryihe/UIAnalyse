@@ -1,5 +1,6 @@
 import os
 import re
+from time import sleep
 
 from appium import webdriver
 from selenium.webdriver.common.by import By
@@ -7,6 +8,7 @@ from selenium.webdriver.common.by import By
 from conf.config import trivia_info
 from diff.server import *
 from diff.image import *
+from diff.comparison import *
 
 
 def get_caps(platformVersion, deviceName, app_info):
@@ -25,13 +27,19 @@ def get_caps(platformVersion, deviceName, app_info):
     return caps
 
 
-def DFS(element):
-    print("in: " + element.get_attribute("class"))
+def dfs(element):
+    # print("in: " + element.get_attribute("class"))
+    # sleep(1)
+
     if element.text != "":
         print(element.text)
     elements = element.find_elements(By.XPATH, "child::*/*")
+    # if element.get_attribute("class") == "android.widget.ImageView":
+    #     print(type(element))
+    #     print(len(elements))
+
     for e in elements:
-        DFS(e)
+        dfs(e)
 
 
 class Device:
@@ -132,26 +140,47 @@ class Devices:
 
     def stop_drivers(self):
         """
-        停用所有device的driver
-        :return:
+        停用所有device的driver，目前的缺点是没办法关掉停止driver后的cmd窗口
         """
         for device in self.devices:
             device.driver.quit()
-            print(device.SAP)
+            cmd = "netstat -aon | findstr \"{}:{}\"".format(device.SAP["host"], device.SAP["port"])
+            info_list = os.popen(cmd).read().strip().split('\n')
+            for info in info_list:
+                temp = info.split()
+                pid = int(temp[4])
+                if pid > 0:
+                    temp_cmd = "taskkill /pid {} -f".format(pid)
+                    os.popen(temp_cmd)
+                    # print("execute " + temp_cmd)
+            # print(device.SAP)
 
         print("-------------------stop_drivers-----------------")
-
 
     def test(self):
         self.start_drivers(trivia_info)
         self.stop_drivers()
 
+    @staticmethod
+    def dfs_iteration(root):
+        l = [root]
+        while l:
+            temp = l.pop()
+            print("in: " + temp.get_attribute("class"))
+            elements = temp.find_elements(By.XPATH, "child::*/*")
+            for e in elements:
+                l.append(e)
+
     def test_single(self):
         driver = self.devices[0].driver
-        root = driver.find_element(By.XPATH, "/hierarchy/*")
+        root = driver.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
         print(root)
         img = root.find_element(By.ID, "titleImage").screenshot_as_png
-        print(img)
+
+        # print(img)
+        # elements = img.find_elements(By.XPATH, "child::*/*")
+        # print(elements)
+        # self.dfs_iteration(root)
 
     def compare_test(self):
         """
@@ -171,9 +200,16 @@ class Devices:
         print(img0.size)
         print(img1.size)
 
-        image_compare_test(img0_byte, img1_byte)
+        ssim_value = image_compare_test(img0_byte, img1_byte)
 
         print("test over-----------------")
+
+    def compare_two_page(self):
+        driver1 = self.devices[0].driver
+        driver2 = self.devices[1].driver
+        root1 = driver1.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
+        root2 = driver2.find_element(By.XPATH, "/hierarchy/*")
+        dfs_two_pages(root1, root2)
 
 
 def temp():
