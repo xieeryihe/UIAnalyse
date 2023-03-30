@@ -1,21 +1,17 @@
 import os
-import re
-from time import sleep
 
 from appium import webdriver
-from selenium.webdriver.common.by import By
 
-from conf.config import trivia_info
-from diff.server import *
-from diff.image import *
 from diff.comparison import *
+from diff.image import *
+from diff.server import *
 
 
 def get_caps(platformVersion, deviceName, app_info):
     caps = {
         "platformName": "Android",
+        "deviceName": deviceName,  # 设备名（用于区分设备）
         "platformVersion": platformVersion,  # 安卓版本
-        "deviceName": deviceName,  # 设备名（主要针对IOS），安卓手机可以随意填写
         "appPackage": app_info["packageName"],  # APP Package名称
         "appActivity": app_info["activityName"],  # 启动Activity名称
         "unicodeKeyboard": True,  # 使用自带输入法，True时可以输入unicode字符
@@ -25,21 +21,6 @@ def get_caps(platformVersion, deviceName, app_info):
         "automationName": "UiAutomator2"
     }
     return caps
-
-
-def dfs(element):
-    # print("in: " + element.get_attribute("class"))
-    # sleep(1)
-
-    if element.text != "":
-        print(element.text)
-    elements = element.find_elements(By.XPATH, "child::*/*")
-    # if element.get_attribute("class") == "android.widget.ImageView":
-    #     print(type(element))
-    #     print(len(elements))
-
-    for e in elements:
-        dfs(e)
 
 
 class Device:
@@ -61,13 +42,11 @@ class Device:
 class Devices:
     """
     用于UI_diff的类，可以封装多种函数
-    目前只是先考虑对比一个APP
+    目前只是先考虑针对一个APP
     """
     device_num = 0
     devices_dict = []  # device的字典列表
     devices = []  # Device类实例的列表
-
-    # apps = []  # 待检测app的列表，好像不需要app列表，因为要检测的内容由device中的driver决定
 
     def __init__(self):
         self.devices_dict = self.get_devices()
@@ -123,14 +102,13 @@ class Devices:
         :return:
         """
         appium_server = AppiumServer()
-        servers = appium_server.start_servers(server_num=self.device_num)
+        servers = appium_server.start_servers(server_num=self.device_num, devices_dict=self.devices_dict)
         for (device_info, server_info) in zip(self.devices_dict, servers):
             platform_version = device_info["platformVersion"]
             device_name = device_info["deviceName"]
             host = server_info["host"]
             port = server_info["port"]
             caps = get_caps(platform_version, device_name, app_info)
-
             driver = webdriver.Remote("http://{}:{}/wd/hub".format(host, port), caps)
 
             driver.implicitly_wait(5)
@@ -157,59 +135,32 @@ class Devices:
 
         print("-------------------stop_drivers-----------------")
 
-    def test(self):
-        self.start_drivers(trivia_info)
-        self.stop_drivers()
-
-    @staticmethod
-    def dfs_iteration(root):
-        l = [root]
-        while l:
-            temp = l.pop()
-            print("in: " + temp.get_attribute("class"))
-            elements = temp.find_elements(By.XPATH, "child::*/*")
-            for e in elements:
-                l.append(e)
-
     def test_single(self):
         driver = self.devices[0].driver
         root = driver.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
         print(root)
         img = root.find_element(By.ID, "titleImage").screenshot_as_png
 
-        # print(img)
-        # elements = img.find_elements(By.XPATH, "child::*/*")
-        # print(elements)
-        # self.dfs_iteration(root)
-
     def compare_test(self):
         """
         对比测试
         :return:
         """
-        driver0 = self.devices[0].driver
-        driver1 = self.devices[1].driver
-        img0_byte = driver0.find_element(By.ID, "titleImage").screenshot_as_png
-        img1_byte = driver1.find_element(By.ID, "titleImage").screenshot_as_png
-        byte2image(img0_byte).save("res/Image/0.png")
-        byte2image(img1_byte).save("res/Image/1.png")
-        # print(type(img0_byte))  # <class 'bytes'>
+        driver1 = self.devices[0].driver
+        driver2 = self.devices[1].driver
 
-        img0 = byte2image(img0_byte)
-        img1 = byte2image(img1_byte)
-        print(img0.size)
-        print(img1.size)
-
-        ssim_value = image_compare_test(img0_byte, img1_byte)
-
-        print("test over-----------------")
+        c = Comparison(driver1, driver2)
+        node1 = driver1.find_element(By.ID, "titleImage")
+        node2 = driver2.find_element(By.ID, "titleImage")
+        # ssim_value = c.image_compare(node1, node2)
+        # print("ssim_value is :{:.3f}".format(ssim_value))
+        c.position_compare(node1, node2)
 
     def compare_two_page(self):
         driver1 = self.devices[0].driver
         driver2 = self.devices[1].driver
-        root1 = driver1.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
-        root2 = driver2.find_element(By.XPATH, "/hierarchy/*")
-        dfs_two_pages(root1, root2)
+        c = Comparison(driver1, driver2)
+        c.dfs()
 
 
 def temp():
@@ -225,9 +176,13 @@ def temp():
         "newCommandTimeout": 6000,
         "automationName": "UiAutomator2"
     }
+
     driver = webdriver.Remote("http://localhost:4723/wd/hub", caps)
+
     driver.implicitly_wait(5)
+    print("-----------")
+    print(driver.caps)
     image_byte = driver.find_element(By.ID, "titleImage").screenshot_as_png
-    byte2image(image_byte).save("./Image/a.png")  # 二进制图片转png
+    byte2image(image_byte).save("./res/Image/0.png")  # 二进制图片转png
     src = byte2cv(image_byte)
-    print(src)
+    # print(src)

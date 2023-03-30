@@ -1,13 +1,14 @@
 douYin_packageName = "com.ss.android.ugc.aweme"
 douYin_activityName = ".main.MainActivity"
 
-trivia_packageName = "com.example.android.navigation"
-trivia_activityName = ".MainActivity"
 trivia_info = {
     "packageName": "com.example.android.navigation",
     "activityName": ".MainActivity"
 }
-
+zhihu_info = {
+    "packageName": "com.zhihu.android",
+    "activityName": ".app.ui.activity.MainActivity"
+}
 bilibili_packageName = "tv.danmaku.bili"
 bilibili_activityName = ".MainActivityV2"
 
@@ -28,3 +29,9 @@ caps_example = {
 }
 
 SSIM_threshold = 0.9  # SSIM值超过0.9才认为两张图片相同
+
+position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现UI错误
+
+mismatch_no = 0  # 失配的图片序号
+
+diff_log = None  # log文件
