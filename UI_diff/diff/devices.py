@@ -1,7 +1,8 @@
 import os
+import threading
 
 from appium import webdriver
-
+from selenium.common import NoSuchElementException
 from diff.comparison import *
 from diff.image import *
 from diff.server import *
@@ -41,12 +42,12 @@ class Device:
 
 class Devices:
     """
-    用于UI_diff的类，可以封装多种函数
-    目前只是先考虑针对一个APP
+    用于UI_diff的类
     """
     device_num = 0
     devices_dict = []  # device的字典列表
     devices = []  # Device类实例的列表
+    threads = []  # 多线程启动
 
     def __init__(self):
         self.devices_dict = self.get_devices()
@@ -90,6 +91,32 @@ class Devices:
         # print(device_list)
         return device_list
 
+    @staticmethod
+    def preprocessing(driver):
+        """
+        预处理开屏广告、青少年协议、登录
+        """
+        # 跳过广告
+        try:
+
+            action_bar_root = driver.find_element(By.ID, "action_bar_root")
+            if action_bar_root:
+                driver.press_keycode(4)  # 按一下返回键
+
+            # 广告
+            ad = driver.find_element(By.ID, "btn_skip")
+            if ad:
+                ad.click()
+
+            # 登录
+            login = driver.find_element(By.ID, "dialog_container")
+            if login:
+                driver.press_keycode(4)  # 按一下返回键
+
+        except NoSuchElementException:
+            # print("NoSuchElementException")
+            pass
+
     def start_drivers(self, app_info):
         """
         相当于初始化设备并连接到服务器，打开对应的应用
@@ -101,20 +128,30 @@ class Devices:
 
         :return:
         """
+        # 启动server
         appium_server = AppiumServer()
         servers = appium_server.start_servers(server_num=self.device_num, devices_dict=self.devices_dict)
+        # 连接devices
         for (device_info, server_info) in zip(self.devices_dict, servers):
-            platform_version = device_info["platformVersion"]
-            device_name = device_info["deviceName"]
-            host = server_info["host"]
-            port = server_info["port"]
-            caps = get_caps(platform_version, device_name, app_info)
-            driver = webdriver.Remote("http://{}:{}/wd/hub".format(host, port), caps)
+            t = threading.Thread(target=self.start_driver, args=(device_info, server_info, app_info))
+            self.threads.append(t)
+            t.start()
+        for t in self.threads:
+            t.join()
 
-            driver.implicitly_wait(5)
-            device = Device(platform_version, device_name, server_info, driver)
-            self.devices.append(device)
-        # root = driver.find_element(By.XPATH, "/hierarchy/*")
+    def start_driver(self, device_info, server_info, app_info):
+        platform_version = device_info["platformVersion"]
+        device_name = device_info["deviceName"]
+        host = server_info["host"]
+        port = server_info["port"]
+        caps = get_caps(platform_version, device_name, app_info)
+        driver = webdriver.Remote("http://{}:{}/wd/hub".format(host, port), caps)
+        driver.implicitly_wait(5)
+        device = Device(platform_version, device_name, server_info, driver)
+        self.devices.append(device)
+
+        # 进行一些预处理
+        self.preprocessing(driver)
 
     def stop_drivers(self):
         """
@@ -139,7 +176,8 @@ class Devices:
         driver = self.devices[0].driver
         root = driver.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
         print(root)
-        img = root.find_element(By.ID, "titleImage").screenshot_as_png
+        img = root.find_element(By.ID, "titleImage").screenshot()
+        print(img)
 
     def compare_test(self):
         """
@@ -148,13 +186,19 @@ class Devices:
         """
         driver1 = self.devices[0].driver
         driver2 = self.devices[1].driver
-
-        c = Comparison(driver1, driver2)
-        node1 = driver1.find_element(By.ID, "titleImage")
-        node2 = driver2.find_element(By.ID, "titleImage")
-        # ssim_value = c.image_compare(node1, node2)
-        # print("ssim_value is :{:.3f}".format(ssim_value))
-        c.position_compare(node1, node2)
+        img1_node = driver1.find_element(By.ID, "category_image")
+        img2_node = driver2.find_element(By.ID, "category_image")
+        img1 = img1_node.screenshot_as_png
+        img2 = img2_node.screenshot_as_png
+        img1_cv = byte2cv(img1)
+        img2_cv = byte2cv(img2)
+        print(img1_node.get_attribute("bounds"))
+        print(img2_node.get_attribute("bounds"))
+        # cv2.imshow("Image1", img1_cv)
+        # cv2.imshow("Image2", img2_cv)
+        # cv2.waitKey(0)
+        cv2.imwrite('./img1.jpg', img1_cv)
+        cv2.imwrite('./img2.jpg', img2_cv)
 
     def compare_two_page(self):
         driver1 = self.devices[0].driver

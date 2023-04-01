@@ -9,8 +9,10 @@ zhihu_info = {
     "packageName": "com.zhihu.android",
     "activityName": ".app.ui.activity.MainActivity"
 }
-bilibili_packageName = "tv.danmaku.bili"
-bilibili_activityName = ".MainActivityV2"
+bilibili_info = {
+    "packageName": "tv.danmaku.bili",
+    "activityName": ".MainActivityV2"
+}
 
 zhihu_packageName = "com.zhihu.android"
 zhihu_activityName = ".app.ui.activity.MainActivity"
@@ -28,7 +30,7 @@ caps_example = {
     "automationName": "UiAutomator2"
 }
 
-SSIM_threshold = 0.9  # SSIM值超过0.9才认为两张图片相同
+SSIM_threshold = 0.85  # SSIM值超过才认为两张图片相同
 
 position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现UI错误
 

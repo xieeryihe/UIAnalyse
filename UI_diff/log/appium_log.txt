@@ -1,1 +1,0 @@
-2023-03-30 03:36:39:633 [Appium] Welcome to Appium v1.22.3
