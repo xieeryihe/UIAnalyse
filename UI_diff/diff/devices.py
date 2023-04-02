@@ -1,11 +1,8 @@
-import os
-import threading
-
 from appium import webdriver
 from selenium.common import NoSuchElementException
-from diff.comparison import *
-from diff.image import *
+
 from diff.server import *
+from diff.uidiff import *
 
 
 def get_caps(platformVersion, deviceName, app_info):
@@ -27,6 +24,11 @@ def get_caps(platformVersion, deviceName, app_info):
 class Device:
     """
     设备类
+    SAP中的元素为字典，一般格式如下：
+    {
+        "host": self.host,
+        "port": temp_port
+    }
     """
     platformVersion = ""
     deviceName = ""
@@ -52,8 +54,8 @@ class Devices:
     def __init__(self):
         self.devices_dict = self.get_devices()
         self.device_num = len(self.devices_dict)
-        print(self.device_num)
-        print(self.devices_dict)
+        # print(self.device_num)
+        # print(self.devices_dict)
         pass
 
     @staticmethod
@@ -73,6 +75,7 @@ class Devices:
         emulator-5556   device
 
         # 设备可用时状态为 "device"，还有 offline 状态
+        # 该步骤速度很快，就不用多线程了
         :return: devices的list[dict...]
         """
 
@@ -98,10 +101,10 @@ class Devices:
         """
         # 跳过广告
         try:
-
-            action_bar_root = driver.find_element(By.ID, "action_bar_root")
-            if action_bar_root:
-                driver.press_keycode(4)  # 按一下返回键
+            # # 青少年协议
+            # action_bar_root = driver.find_element(By.ID, "action_bar_root")
+            # if action_bar_root:
+            #     driver.press_keycode(4)  # 按一下返回键
 
             # 广告
             ad = driver.find_element(By.ID, "btn_skip")
@@ -111,7 +114,9 @@ class Devices:
             # 登录
             login = driver.find_element(By.ID, "dialog_container")
             if login:
-                driver.press_keycode(4)  # 按一下返回键
+                close = driver.find_element(By.ID, "close")
+                if close:
+                    driver.press_keycode(4)  # 按一下返回键
 
         except NoSuchElementException:
             # print("NoSuchElementException")
@@ -138,6 +143,7 @@ class Devices:
             t.start()
         for t in self.threads:
             t.join()
+        return self.devices
 
     def start_driver(self, device_info, server_info, app_info):
         platform_version = device_info["platformVersion"]
@@ -172,61 +178,8 @@ class Devices:
 
         print("-------------------stop_drivers-----------------")
 
-    def test_single(self):
-        driver = self.devices[0].driver
-        root = driver.find_element(By.XPATH, "/hierarchy/*")  # 得到顶层元素
-        print(root)
-        img = root.find_element(By.ID, "titleImage").screenshot()
-        print(img)
-
-    def compare_test(self):
-        """
-        对比测试
-        :return:
-        """
-        driver1 = self.devices[0].driver
-        driver2 = self.devices[1].driver
-        img1_node = driver1.find_element(By.ID, "category_image")
-        img2_node = driver2.find_element(By.ID, "category_image")
-        img1 = img1_node.screenshot_as_png
-        img2 = img2_node.screenshot_as_png
-        img1_cv = byte2cv(img1)
-        img2_cv = byte2cv(img2)
-        print(img1_node.get_attribute("bounds"))
-        print(img2_node.get_attribute("bounds"))
-        # cv2.imshow("Image1", img1_cv)
-        # cv2.imshow("Image2", img2_cv)
-        # cv2.waitKey(0)
-        cv2.imwrite('./img1.jpg', img1_cv)
-        cv2.imwrite('./img2.jpg', img2_cv)
-
     def compare_two_page(self):
         driver1 = self.devices[0].driver
         driver2 = self.devices[1].driver
-        c = Comparison(driver1, driver2)
-        c.dfs()
-
-
-def temp():
-    caps = {
-        "platformName": "Android",
-        "platformVersion": "9",
-        "deviceName": "xxx",
-        "appPackage": "com.example.android.navigation",
-        "appActivity": ".MainActivity",
-        "unicodeKeyboard": True,
-        "resetKeyboard": True,
-        "noReset": True,
-        "newCommandTimeout": 6000,
-        "automationName": "UiAutomator2"
-    }
-
-    driver = webdriver.Remote("http://localhost:4723/wd/hub", caps)
-
-    driver.implicitly_wait(5)
-    print("-----------")
-    print(driver.caps)
-    image_byte = driver.find_element(By.ID, "titleImage").screenshot_as_png
-    byte2image(image_byte).save("./res/Image/0.png")  # 二进制图片转png
-    src = byte2cv(image_byte)
-    # print(src)
+        d = Diff(driver1, driver2)
+        d.diff()

@@ -14,8 +14,10 @@ bilibili_info = {
     "activityName": ".MainActivityV2"
 }
 
-zhihu_packageName = "com.zhihu.android"
-zhihu_activityName = ".app.ui.activity.MainActivity"
+soundrecorder_info = {
+    "packageName": "com.danielkim.soundrecorder",
+    "activityName": ".activities.MainActivity"
+}
 
 caps_example = {
     "platformName": "Android",
@@ -34,6 +36,11 @@ SSIM_threshold = 0.85  # SSIM值超过才认为两张图片相同
 
 position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现UI错误
 
-mismatch_no = 0  # 失配的图片序号
+mis_no = 0  # 失配的图片序号
 
 diff_log = None  # log文件
+
+# 返回值
+RET_MISMATCH = -1  # 失配
+RET_SKIP = -2  # 跳过
+RET_OK = 1  # 没问题

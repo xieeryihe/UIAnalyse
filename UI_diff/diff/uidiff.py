@@ -1,10 +1,40 @@
 # 对比模块
+import os
 import re
+import threading
 
-from conf import config
 from diff.image import *
 from skimage.metrics import structural_similarity
 from selenium.webdriver.common.by import By
+from diff.config import *
+from diff import config
+
+
+def init():
+    """
+    初始化
+    """
+    # 判断路径是否存在
+    dir_path = "./img/"
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+    # 删除上一次log的所有图片
+    for root, dirs, files in os.walk(dir_path):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            os.remove(file_path)
+
+    # 打开log文件
+    config.diff_log = open("./log/diff_log.txt", "w")
+    config.diff_log.write("start\n")
+
+
+def end():
+    """
+    后续操作
+    """
+    config.diff_log.close()
 
 
 def get_bounds(node):
@@ -15,13 +45,14 @@ def get_bounds(node):
     return list(map(int, str_list))
 
 
-class Comparison:
+class Diff:
     driver1 = None
     driver2 = None
     root1 = None
     root2 = None
     list1 = None
     list2 = None
+
     # 软检测白名单
     white_list = {
         "class": [
@@ -44,8 +75,10 @@ class Comparison:
                 return True
         return False
 
-    def mismatch(self, node1, node2, rec_color=(0, 0, 255)):
-        # UI不匹配，将两张图片出错区域圈出来，并合并，保存
+    def mismatch(self, node1, node2, rec_color=(0, 0, 255), img_path="./img"):
+        """
+        失配时，保存图片，颜色为BGR
+        """
         # print("---mismatch---")
         # print(node1.get_attribute("resource-id"))
         img1_byte = self.driver1.get_screenshot_as_png()  # driver取出的图片是四通道的
@@ -77,19 +110,17 @@ class Comparison:
         # cv2.imshow('Image', diff_img)
         # cv2.waitKey(0)
         # print("save img")
-        cv2.imwrite("./log/img/{}.png".format(config.mismatch_no), diff_img)
-        config.mismatch_no += 1
+
+        cv2.imwrite("{}/{}.png".format(img_path, config.mis_no), diff_img)
+        config.mis_no += 1
 
     def position_compare(self, node1, node2):
         """
         位置对比，包括1.元素占整个屏幕长宽的百分比和2.元素中点占屏幕位置的百分比
         bounds属性一般形式为：bounds="[16,373][704,757]"，为字符串类型，分别为左上，右下坐标
-        :param node1:
-        :param node2:
-        :return:
         """
-        # 提取bounds属性中的数字并转换为整型
 
+        # 提取bounds属性中的数字并转换为整型
         node1_bounds = get_bounds(node1)
         node2_bounds = get_bounds(node2)
         root1_bounds = get_bounds(self.root1)
@@ -123,18 +154,21 @@ class Comparison:
         width_diff = node2_width_prop - node1_width_prop
         height_diff = node2_height_prop - node1_height_prop
 
-        result = [x < config.position_threshold for x in
+        result = [x < position_threshold for x in
                   [center_diff_x, center_diff_y, width_diff, height_diff]]
         if not all(result):  # 如果但凡有一个超过阈值，就有问题
-            config.diff_log.write("---------------mismatch-------------------\n")
-            print("---------------position mismatch-------------------")
+            print("position mismatch")
+            config.diff_log.write("{} : position mismatch.\n".format(config.mis_no))
             self.mismatch(node1, node2)
-            return -1
+            return RET_MISMATCH
 
-        return 1
+        return RET_OK
 
     @staticmethod
     def image_compare(node1, node2):
+        """
+        图片对比
+        """
         image1_byte = node1.screenshot_as_png
         image2_byte = node2.screenshot_as_png
         image1_cv = byte2cv(image1_byte)
@@ -149,78 +183,117 @@ class Comparison:
         return ssim_value
 
     def image_node(self, node1, node2, strict_mode=1):
-        # 对图像节点的处理
+        """
+        图像节点对比
+        """
         if strict_mode:
             ssim_value = self.image_compare(node1, node2)
-            if ssim_value < config.SSIM_threshold:
-
+            if ssim_value < SSIM_threshold:
                 print("img mismatch" + str(ssim_value))
-
+                config.diff_log.write("{} : image mismatch.\n".format(config.mis_no))
                 self.mismatch(node1, node2)
-                return -1
+                return RET_MISMATCH
         return self.position_compare(node1, node2)
 
     def text_node(self, node1, node2, strict_mode=1):
+        """
+        文本节点对比（TextView）
+        """
         if strict_mode:
             text1 = node1.get_attribute("text")
             text2 = node2.get_attribute("text")
             if text1 != text2:
-                print("text mismatch:" + "text1 is " + text1 + ", text2 is " + text2)
+                print("text mismatch: text1 is \"{}\", text2 is \"{}\".".format(text1, text2))
+                config.diff_log.write("{} : text mismatch.\n".format(config.mis_no))
                 self.mismatch(node1, node2)
-                return -1
+                return RET_MISMATCH
         return self.position_compare(node1, node2)
 
     def compare(self, node1, node2):
+        """
+        对比两个节点的总函数
+        """
         class1 = node1.get_attribute("class")
         class2 = node2.get_attribute("class")
         id1 = node1.get_attribute("resource-id")
+        id2 = node2.get_attribute("resource-id")
+
         strict_mode = 1
 
+        # 跳过白名单
         if self.in_white_list(class1, "class"):
             # print("skip class")
-            return -2
+            return RET_SKIP
         if id1 and self.in_white_list(id1, "resource-id"):
             # print("skip id")
-            return -2
+            return RET_SKIP
+
         # 类名检测
         if class1 != class2:
             # 类都不一致，用蓝色圈出来
-            self.mismatch(node1, node2, rec_color=(255, 0, 0))  # BGR
             print("class1: " + class1 + "  class2: " + class2)
-            return -1
+            print("id1: " + id1 + "  id2: " + id2)
+            config.diff_log.write("{} : class mismatch.\n".format(config.mis_no))
+            self.mismatch(node1, node2, rec_color=(255, 0, 0))  # BGR
+            return RET_MISMATCH
 
         # 图片检测
         if "ImageView" in class1:
             if self.image_node(node1, node2, strict_mode) < 0:
-                return -1
+                return RET_MISMATCH
 
         # 文本检测
         if "TextView" in class1:
             if self.text_node(node1, node2, strict_mode) < 0:
-                return -1
-        return 1
+                return RET_MISMATCH
+        return RET_OK
 
-    def dfs(self):
+    @staticmethod
+    def find_all_child(node, node_list):
+        elements = node.find_elements(By.XPATH, "child::*/*")
+        elements.reverse()
+        for e in elements:
+            node_list.append(e)
+
+    def diff(self):
         self.root1 = self.driver1.find_element(By.XPATH, "/hierarchy/*")
         self.root2 = self.driver2.find_element(By.XPATH, "/hierarchy/*")
         self.list1 = [self.root1]
         self.list2 = [self.root2]
+
+        # print(type(self.driver1))
+        # print(type(self.root1))
+
         while self.list1 and self.list2:
             node1 = self.list1.pop()
             node2 = self.list2.pop()
-
+            # print(node1.get_attribute("resource-id"))
+            # print(node2.get_attribute("resource-id"))
             # compare
             if self.compare(node1, node2) < 0:
                 # 如果当前节点有问题，就不用push子节点了，继续就行
                 continue
             else:
+                # 如果检测没问题（那么都是一样的，取其中一个log即可）
                 id1 = node1.get_attribute("resource-id")
                 config.diff_log.write(str(id1) + " compare OK...\n")
-                # print(str(id1) + " compare OK...")
 
-            elements1 = node1.find_elements(By.XPATH, "child::*/*")
-            elements2 = node2.find_elements(By.XPATH, "child::*/*")
-            for e1 in elements1:
-                self.list1.append(e1)
-            for e2 in elements2:
-                self.list2.append(e2)
+            # 经过测试，查找子元素耗时较长，下面代码用于多线程获取子元素
+
+            t1 = threading.Thread(target=self.find_all_child, args=(node1, self.list1,))
+            t2 = threading.Thread(target=self.find_all_child, args=(node2, self.list2,))
+
+            t1.start()
+            t2.start()
+
+            t1.join()
+            t2.join()
+
+            # 单线程
+            # elements1 = node1.find_elements(By.XPATH, "child::*/*")
+            # elements2 = node2.find_elements(By.XPATH, "child::*/*")
+
+            # for e1 in elements1:
+            #     self.list1.append(e1)
+            # for e2 in elements2:
+            #     self.list2.append(e2)

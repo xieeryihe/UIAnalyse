@@ -1,38 +1,41 @@
-from diff.devices import *
-from conf import config
-import os
+import time
 
+from selenium.webdriver.common.by import By
 
-def init():
-    # 删除上一次log的所有图片
-    dir_path = "./log/img/"
-    for root, dirs, files in os.walk(dir_path):
-        for file_name in files:
-            file_path = os.path.join(root, file_name)
-            os.remove(file_path)
-
-    # 打开log文件
-    config.diff_log = open("./log/diff_log.txt", "w")
-    config.diff_log.write("start\n")
-
-
-def end():
-    # 结束操作
-    config.diff_log.close()
+from diff.devices import Devices
+from diff import config, uidiff
 
 
 def app_test(info):
+    uidiff.init()
+
     devices = Devices()
-    devices.start_drivers(info)
-    # devices.compare_two_page()
-    # devices.compare_test()
-    devices.test_single()
+    device_list = devices.start_drivers(info)
+
+    # 测知乎用的
+    # for device in device_list:
+    #     eles = device.driver.find_elements(By.CLASS_NAME, "android.widget.TextView")
+    #     for e in eles:
+    #         if e.get_attribute("text") == "未登录":
+    #             e.click()
+    #             break
+    # time.sleep(5)
+
+    # 两两对比
+    for i in range(len(device_list) - 1):
+        uidiff.Diff(device_list[i].driver, device_list[i + 1].driver).diff()
+
     devices.stop_drivers()
+
+    uidiff.end()
 
 
 if __name__ == '__main__':
-    init()
+    start_time = time.time()
 
-    app_test(config.bilibili_info)
+    app_test(config.soundrecorder_info)
 
-    end()
+    end_time = time.time()
+
+    run_time = end_time - start_time
+    print("运行时长: {:.2f} 秒。".format(run_time))
