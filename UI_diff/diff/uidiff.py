@@ -57,7 +57,8 @@ class Diff:
     white_list = {
         "class": [
             "RecyclerView",
-            "HorizontalScrollView"
+            "HorizontalScrollView",
+            "ListView"
         ],
         "resource-id": [
             "input",
@@ -141,9 +142,9 @@ class Diff:
         node2_center_prop_x = node2_center_x / width2
         node2_center_prop_y = node2_center_y / height2
 
-        # 中点差异的比例（比例范围0~1）
-        center_diff_x = node2_center_prop_x - node1_center_prop_x
-        center_diff_y = node2_center_prop_y - node1_center_prop_y
+        # 中点差异的比例，取绝对值（比例范围0~1）
+        center_diff_x = abs(node2_center_prop_x - node1_center_prop_x)
+        center_diff_y = abs(node2_center_prop_y - node1_center_prop_y)
 
         node1_width_prop = node1_bounds[2] / width1
         node1_height_prop = node1_bounds[3] / height1
@@ -151,74 +152,123 @@ class Diff:
         node2_height_prop = node2_bounds[3] / height2
 
         # 长宽差异比例
-        width_diff = node2_width_prop - node1_width_prop
-        height_diff = node2_height_prop - node1_height_prop
+        width_diff = abs(node2_width_prop - node1_width_prop)
+        height_diff = abs(node2_height_prop - node1_height_prop)
 
         result = [x < position_threshold for x in
                   [center_diff_x, center_diff_y, width_diff, height_diff]]
+        id1 = node1.get_attribute("resource-id")
+        # if id1 and "recordProgressBar" in id1:
+        #     print(width_diff, height_diff, center_diff_x, center_diff_y)
+        #     print(result)
         if not all(result):  # 如果但凡有一个超过阈值，就有问题
-            print("position mismatch")
+            # print("position mismatch")
             config.diff_log.write("{} : position mismatch.\n".format(config.mis_no))
             self.mismatch(node1, node2)
             return RET_MISMATCH
 
         return RET_OK
 
-    @staticmethod
-    def image_compare(node1, node2):
-        """
-        图片对比
-        """
-        image1_byte = node1.screenshot_as_png
-        image2_byte = node2.screenshot_as_png
-        image1_cv = byte2cv(image1_byte)
-        image2_cv = byte2cv(image2_byte)
-        gray_image1 = cv2.cvtColor(image1_cv, cv2.COLOR_BGR2GRAY)
-        gray_image2 = cv2.cvtColor(image2_cv, cv2.COLOR_BGR2GRAY)
-        gray_image2 = cv2.resize(gray_image2, (gray_image1.shape[1], gray_image1.shape[0]))
-        # structural_similarity 的两个图片必须是相同size
-        ssim_value = structural_similarity(gray_image1, gray_image2)
-        # 打印SSIM值
-        # print("The SSIM value is", ssim_value)
-        return ssim_value
-
-    def image_node(self, node1, node2, strict_mode=1):
-        """
-        图像节点对比
-        """
-        if strict_mode:
-            ssim_value = self.image_compare(node1, node2)
-            if ssim_value < SSIM_threshold:
-                print("img mismatch" + str(ssim_value))
-                config.diff_log.write("{} : image mismatch.\n".format(config.mis_no))
-                self.mismatch(node1, node2)
-                return RET_MISMATCH
-        return self.position_compare(node1, node2)
-
-    def text_node(self, node1, node2, strict_mode=1):
-        """
-        文本节点对比（TextView）
-        """
-        if strict_mode:
-            text1 = node1.get_attribute("text")
-            text2 = node2.get_attribute("text")
-            if text1 != text2:
-                print("text mismatch: text1 is \"{}\", text2 is \"{}\".".format(text1, text2))
-                config.diff_log.write("{} : text mismatch.\n".format(config.mis_no))
-                self.mismatch(node1, node2)
-                return RET_MISMATCH
-        return self.position_compare(node1, node2)
-
-    def compare(self, node1, node2):
-        """
-        对比两个节点的总函数
-        """
+    def class_diff(self, node1, node2):
         class1 = node1.get_attribute("class")
         class2 = node2.get_attribute("class")
         id1 = node1.get_attribute("resource-id")
         id2 = node2.get_attribute("resource-id")
+        if class1 != class2:
+            # print("class1: " + class1 + "  class2: " + class2)
+            # print("id1: " + id1 + "  id2: " + id2)
+            config.diff_log.write("{} : class mismatch.\n".format(config.mis_no))
+            config.diff_log.write("\tclass1 :{}, class2 :{}".format(class1, class2))
+            config.diff_log.write("\tid1 :{}, class2 :{}".format(id1, id2))
 
-        strict_mode = 1
+            # 类都不一致，用蓝色圈出来
+            self.mismatch(node1, node2, rec_color=(255, 0, 0))  # BGR
+            return RET_MISMATCH
+        return RET_OK
+
+    @staticmethod
+    def image_compare(node1, node2):
+        """
+        图片对比
+        :return ssim,hsv_mean_diff
+        """
+        image1_byte = node1.screenshot_as_png  # RGBA 格式
+        image2_byte = node2.screenshot_as_png
+        image1_cv = byte2cv(image1_byte)  # 得到的是四通道图片
+        image2_cv = byte2cv(image2_byte)
+        image2_cv = cv2.resize(image2_cv, (image1_cv.shape[1], image1_cv.shape[0]))
+
+        # gray_image1 = cv2.cvtColor(image1_cv, cv2.COLOR_BGR2GRAY)
+        # gray_image2 = cv2.cvtColor(image2_cv, cv2.COLOR_BGR2GRAY)
+        # gray_image2 = cv2.resize(gray_image2, (gray_image1.shape[1], gray_image1.shape[0]))
+        # # structural_similarity 的两个图片必须是相同size
+        # ssim_value = structural_similarity(gray_image1, gray_image2)
+
+        # 直接比较彩色图片
+        """
+        channel_axis=2 指的是通道轴的索引是多少，源码中有
+        nch = im1.shape[channel_axis]
+        所以对于一个二维图像，比如对于shape为(100, 100, 4) 的图像，axis为2
+        """
+        ssim_value = structural_similarity(image1_cv, image2_cv, channel_axis=2, multichannel=True)
+
+        # 比较hsv
+        # cvtColor没有直接将RGB转为HSV的，所以需要先转为三通道，比如RGB
+        rgb1 = cv2.cvtColor(image1_cv, cv2.COLOR_BGRA2RGB)
+        rgb2 = cv2.cvtColor(image2_cv, cv2.COLOR_BGRA2RGB)
+        hsv1 = cv2.cvtColor(rgb1, cv2.COLOR_RGB2HSV)
+        hsv2 = cv2.cvtColor(rgb2, cv2.COLOR_RGB2HSV)
+        hsv_diff = cv2.absdiff(hsv1, hsv2)
+        hsv_mean_diff = np.mean(hsv_diff)
+
+        # print("The SSIM value is ", ssim_value)
+        # print("hsv_mean_diff is ", hsv_mean_diff)
+        return ssim_value, hsv_mean_diff
+
+    def image_diff(self, node1, node2):
+        """
+        图像节点对比
+        """
+        ssim_value, hsv_mean_diff = self.image_compare(node1, node2)
+        if ssim_value < SSIM_threshold or hsv_mean_diff > HSV_threshold:
+            # print("img mismatch" + str(ssim_value))
+            config.diff_log.write("{} :image mismatch.\n".format(config.mis_no))
+            config.diff_log.write("\tSSIM is :{}, HSV diff is :{}.\n".format(ssim_value, hsv_mean_diff))
+
+            self.mismatch(node1, node2)
+            return RET_MISMATCH
+        return RET_OK
+
+    def text_diff(self, node1, node2):
+        """
+        文本节点对比（TextView）
+        """
+        text1 = node1.get_attribute("text")
+        text2 = node2.get_attribute("text")
+        if text1 != text2:
+            # print("text mismatch: text1 is \"{}\", text2 is \"{}\".".format(text1, text2))
+            config.diff_log.write("{} :text mismatch.\n".format(config.mis_no))
+            config.diff_log.write("\ttext1 is \"{}\", text2 is \"{}\".\n".format(text1, text2))
+            self.mismatch(node1, node2)
+            return RET_MISMATCH
+        return RET_OK
+
+    def compare(self, node1, node2, **kwargs):
+        """
+        对比两个节点的总函数
+        **kwargs表示一个字典，其中包含了所有传递给函数的关键字参数。
+        一般形式为：
+        {
+            "class": true,
+            ...
+        }
+        表示启用类检测
+        """
+
+        class1 = node1.get_attribute("class")
+        # class2 = node2.get_attribute("class")
+        id1 = node1.get_attribute("resource-id")
+        # id2 = node2.get_attribute("resource-id")
 
         # 跳过白名单
         if self.in_white_list(class1, "class"):
@@ -229,23 +279,39 @@ class Diff:
             return RET_SKIP
 
         # 类名检测
-        if class1 != class2:
-            # 类都不一致，用蓝色圈出来
-            print("class1: " + class1 + "  class2: " + class2)
-            print("id1: " + id1 + "  id2: " + id2)
-            config.diff_log.write("{} : class mismatch.\n".format(config.mis_no))
-            self.mismatch(node1, node2, rec_color=(255, 0, 0))  # BGR
-            return RET_MISMATCH
+        class_skip = kwargs.get("class_skip", False)
+        """
+        get的第二个参数表示：如果没有该键，返回的默认值。
+        注意，第二个参数不能写default=False，否则报错TypeError: dict.get() takes no keyword arguments
+        """
+        if not class_skip:
+            ret = self.class_diff(node1, node2)
+            if ret < 0:
+                return ret
 
         # 图片检测
-        if "ImageView" in class1:
-            if self.image_node(node1, node2, strict_mode) < 0:
-                return RET_MISMATCH
+        # ImageView 和 ImageButton都可以显示图片
+        image_skip = kwargs.get("image_skip", False)
+        if not image_skip and "Image" in class1:
+            ret = self.image_diff(node1, node2)
+            if ret < 0:
+                return ret
 
         # 文本检测
-        if "TextView" in class1:
-            if self.text_node(node1, node2, strict_mode) < 0:
-                return RET_MISMATCH
+        # 不止TextView和EditText等会显示文本，Button类也会有文本属性，所以需要对每一个节点都比对
+        text_skip = kwargs.get("text_skip", False)
+        if not text_skip:
+            ret = self.text_diff(node1, node2)
+            if ret < 0:
+                return ret
+
+        # 位置检测
+        position_skip = kwargs.get("position_skip", False)
+        if not position_skip:
+            ret = self.position_compare(node1, node2)
+            if ret < 0:
+                return ret
+
         return RET_OK
 
     @staticmethod
@@ -297,3 +363,9 @@ class Diff:
             #     self.list1.append(e1)
             # for e2 in elements2:
             #     self.list2.append(e2)
+
+
+def diff_all(device_list):
+    # 两两对比
+    for i in range(len(device_list) - 1):
+        Diff(device_list[i].driver, device_list[i + 1].driver).diff()

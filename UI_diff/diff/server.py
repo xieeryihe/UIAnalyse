@@ -29,7 +29,7 @@ class AppiumServer:
         print(cmd)
         subprocess.Popen(cmd, shell=True)
 
-    def start_servers(self, server_num=1, devices_dict=None, if_background=False, ):
+    def start_servers(self, server_num=1, devices_dict=None, if_background=False ):
         for i in range(0, server_num):
             temp_port = self.base_port + i * 2
             uid = devices_dict[i]["deviceName"]

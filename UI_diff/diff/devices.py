@@ -1,6 +1,7 @@
 from appium import webdriver
 from selenium.common import NoSuchElementException
 
+import diff.image
 from diff.server import *
 from diff.uidiff import *
 
@@ -122,20 +123,29 @@ class Devices:
             # print("NoSuchElementException")
             pass
 
-    def start_drivers(self, app_info):
+    def start_drivers(self, app_info, device_dict=None, if_background=False):
         """
-        相当于初始化设备并连接到服务器，打开对应的应用
+        初始化设备并连接到服务器，打开对应的应用
+        :param if_background: 是否在后台运行，默认不在后台运行
+        :param device_dict: 要启动的设备列表
         :param app_info:待启动的app信息，一般形式为：
         dict{
             "packageName": "xxx",
             "activityName": "xxx"
         }
-
-        :return:
+        :return:Device实例列表
         """
         # 启动server
         appium_server = AppiumServer()
-        servers = appium_server.start_servers(server_num=self.device_num, devices_dict=self.devices_dict)
+        # 可自定义设备列表检测，也可以用默认的（系统检测到的所有设备）
+        if device_dict:
+            target_num = len(device_dict)
+            target_devices = device_dict
+        else:
+            target_num = self.device_num
+            target_devices = self.devices_dict
+        servers = appium_server.start_servers(
+            server_num=target_num, devices_dict=target_devices, if_background=if_background)
         # 连接devices
         for (device_info, server_info) in zip(self.devices_dict, servers):
             t = threading.Thread(target=self.start_driver, args=(device_info, server_info, app_info))
@@ -173,13 +183,31 @@ class Devices:
                 if pid > 0:
                     temp_cmd = "taskkill /pid {} -f".format(pid)
                     os.popen(temp_cmd)
+
                     # print("execute " + temp_cmd)
             # print(device.SAP)
 
         print("-------------------stop_drivers-----------------")
 
-    def compare_two_page(self):
+    def temp_test(self):
         driver1 = self.devices[0].driver
-        driver2 = self.devices[1].driver
-        d = Diff(driver1, driver2)
-        d.diff()
+        # driver2 = self.devices[1].driver
+        # d = Diff(driver1, driver2)
+        # d.diff()
+        # text_node = driver1.find_element(By.ID, "recording_status_text")
+        # text = text_node.get_attribute("text")
+        # text_pic = text_node.screenshot_as_png
+        # print(text)
+        # print(text_pic)
+        # pic_cv2 = diff.image.byte2cv(text_pic)
+        # # cv2.imshow('1', pic_cv2)
+        # cv2.imwrite('image.png', pic_cv2)
+
+        # textColor = text_node.get_attribute("contentSize")
+        # print(textColor)
+        root = driver1.find_element(By.XPATH, "/hierarchy/*")
+        img_png = root.screenshot_as_png
+        img_cv2 = byte2cv(img_png)
+        cv2.imshow("image", img_cv2)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
