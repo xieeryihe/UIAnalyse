@@ -76,23 +76,24 @@ class Diff:
                 return True
         return False
 
-    def mismatch(self, node1, node2, rec_color=(0, 0, 255), img_path="./img"):
+    def mismatch(self, node1, node2, rec_color=(0, 0, 255, 255), img_path="./img"):
         """
-        失配时，保存图片，颜色为BGR
+        失配时，保存图片，get_screenshot_as_png()为四通道BGRA，A为255表示不透明
         """
         # print("---mismatch---")
         # print(node1.get_attribute("resource-id"))
-        img1_byte = self.driver1.get_screenshot_as_png()  # driver取出的图片是四通道的
+        img1_byte = self.driver1.get_screenshot_as_png()  # BGRA
         img2_byte = self.driver2.get_screenshot_as_png()
         img1_cv = byte2cv(img1_byte)
         img2_cv = byte2cv(img2_byte)
 
-        # 如果是四通道的，转为三通道
-        if img1_cv.shape[2] == 4:
-            img1_cv = cv2.cvtColor(img1_cv, cv2.COLOR_BGRA2BGR)
-        if img2_cv.shape[2] == 4:
-            img2_cv = cv2.cvtColor(img2_cv, cv2.COLOR_BGRA2BGR)
+        # # 如果是四通道的，转为三通道
+        # if img1_cv.shape[2] == 4:
+        #     img1_cv = cv2.cvtColor(img1_cv, cv2.COLOR_BGRA2BGR)
+        # if img2_cv.shape[2] == 4:
+        #     img2_cv = cv2.cvtColor(img2_cv, cv2.COLOR_BGRA2BGR)
 
+        # 直接用四通道图片
         bounds1 = get_bounds(node1)
         upper_left1 = (bounds1[0], bounds1[1])
         lower_right1 = (bounds1[2], bounds1[3])
@@ -101,8 +102,8 @@ class Diff:
         upper_left2 = (bounds2[0], bounds2[1])
         lower_right2 = (bounds2[2], bounds2[3])
 
-        # 圈出不匹配的位置
-        cv2.rectangle(img1_cv, upper_left1, lower_right1, rec_color, 3)  # 颜色是BGR
+        # 圈出不匹配的位置，3为边框宽度
+        cv2.rectangle(img1_cv, upper_left1, lower_right1, rec_color, 3)  # 颜色是BGRA
         cv2.rectangle(img2_cv, upper_left2, lower_right2, rec_color, 3)
 
         # 拼接出错的图像便于对比
@@ -182,7 +183,7 @@ class Diff:
             config.diff_log.write("\tid1 :{}, class2 :{}".format(id1, id2))
 
             # 类都不一致，用蓝色圈出来
-            self.mismatch(node1, node2, rec_color=(255, 0, 0))  # BGR
+            self.mismatch(node1, node2, rec_color=(255, 0, 0, 255))  # BGRA
             return RET_MISMATCH
         return RET_OK
 
@@ -292,7 +293,12 @@ class Diff:
         # 图片检测
         # ImageView 和 ImageButton都可以显示图片
         image_skip = kwargs.get("image_skip", False)
-        if not image_skip and "Image" in class1:
+        image_check = False
+        if "Image" in class1 or "Button" in class1:  # 图像或按钮
+            image_check = True
+        if node1.get_attribute("clickable") == "true":  # 可点击的部分也检测
+            image_check = True
+        if not image_skip and image_check:
             ret = self.image_diff(node1, node2)
             if ret < 0:
                 return ret
@@ -341,8 +347,9 @@ class Diff:
                 continue
             else:
                 # 如果检测没问题（那么都是一样的，取其中一个log即可）
+                class1 = node1.get_attribute("class")
                 id1 = node1.get_attribute("resource-id")
-                config.diff_log.write(str(id1) + " compare OK...\n")
+                config.diff_log.write(f"class:{class1}, id:{id1} compare OK...\n")
 
             # 经过测试，查找子元素耗时较长，下面代码用于多线程获取子元素
 

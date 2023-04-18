@@ -7,15 +7,19 @@ class AppiumServer:
     SAP中的元素为字典，一般格式如下：
     {
         "host": self.host,
-        "port": temp_port
+        "port": temp_port,
     }
     """
     host = "127.0.0.1"
     base_port = 4723
     SAP_list = []  # 服务访问点（service access point）列表
 
-    def __init__(self):
-        pass
+    def __init__(self, host="127.0.0.1", base_port=4723, SAP_list=None):
+        if SAP_list is None:
+            SAP_list = []
+        self.host = host
+        self.base_port = base_port
+        self.SAP_list = SAP_list
 
     @staticmethod
     def start_server(host=host, port=base_port, uid="emulator-5554", if_background=False):
@@ -29,7 +33,7 @@ class AppiumServer:
         print(cmd)
         subprocess.Popen(cmd, shell=True)
 
-    def start_servers(self, server_num=1, devices_dict=None, if_background=False ):
+    def start_servers(self, server_num=1, devices_dict=None, if_background=False):
         for i in range(0, server_num):
             temp_port = self.base_port + i * 2
             uid = devices_dict[i]["deviceName"]
@@ -37,8 +41,7 @@ class AppiumServer:
                               if_background=if_background)
             temp_dict = {
                 "host": self.host,
-                "port": temp_port,
-                "deviceName": uid
+                "port": temp_port
             }
             self.SAP_list.append(temp_dict)
         return self.SAP_list

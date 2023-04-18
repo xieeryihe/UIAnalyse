@@ -28,7 +28,7 @@ class Device:
     SAP中的元素为字典，一般格式如下：
     {
         "host": self.host,
-        "port": temp_port
+        "port": temp_port,
     }
     """
     platformVersion = ""
@@ -45,7 +45,7 @@ class Device:
 
 class Devices:
     """
-    用于UI_diff的类
+    设备管理核心类
     """
     device_num = 0
     devices_dict = []  # device的字典列表
@@ -127,7 +127,11 @@ class Devices:
         """
         初始化设备并连接到服务器，打开对应的应用
         :param if_background: 是否在后台运行，默认不在后台运行
-        :param device_dict: 要启动的设备列表
+        :param device_dict: 要启动的设备列表，一般形式为：
+        dict{
+            "deviceName": "emulator-5554",
+            "platformVersion": "9"
+        }
         :param app_info:待启动的app信息，一般形式为：
         dict{
             "packageName": "xxx",

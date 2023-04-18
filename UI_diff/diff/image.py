@@ -30,15 +30,15 @@ def byte2cv(im):
     return cv2.imdecode(np.array(bytearray(im), dtype='uint8'), cv2.IMREAD_UNCHANGED)  # 从二进制图片数据中读取
 
 
-def img_padding(img_cv2, dst_width, dst_height, x_offset=0, y_offset=0, channel=3):
+def img_padding(img_cv2, dst_width, dst_height, x_offset=0, y_offset=0, channel=4):
     src_height, src_width, _ = img_cv2.shape
     new_img = np.zeros((dst_height, dst_width, channel), dtype=np.uint8)
     new_img[y_offset: y_offset + src_height, x_offset: x_offset + src_width] = img_cv2
     return new_img
 
 
-def hconcat_images(img1_cv2, img2_cv2, divider_flag=True, width=3, color=(0, 0, 255)):
-    # 颜色是BGR顺序
+def hconcat_images(img1_cv2, img2_cv2, divider_flag=True, width=3, color=(0, 0, 255, 255)):
+    # 颜色是BGRA顺序
     height1, width1, _ = img1_cv2.shape
     height2, width2, _ = img2_cv2.shape
     dst_height = height2  # 目标高度是选高的
@@ -49,7 +49,7 @@ def hconcat_images(img1_cv2, img2_cv2, divider_flag=True, width=3, color=(0, 0, 
         img1_cv2 = img_padding(img1_cv2, width1, height2)
 
     if divider_flag:
-        line_divider = np.zeros((dst_height, width, 3), np.uint8)
+        line_divider = np.zeros((dst_height, width, len(color)), np.uint8)
         line_divider[:, :] = color
         dst = cv2.hconcat([img1_cv2, line_divider, img2_cv2])
     else:

@@ -19,6 +19,21 @@ soundrecorder_info = {
     "activityName": ".activities.MainActivity"
 }
 
+kanji_info = {
+    "packageName": "krillefear.funwithkanji",
+    "activityName": ".MainActivity"
+}
+
+ruslin_info = {
+    "packageName": "org.dianqk.ruslin",
+    "activityName": ".MainActivity"
+}
+
+metronome_info = {
+    "packageName": "de.moekadu.metronome",
+    "activityName": ".MainActivity"
+}
+
 caps_example = {
     "platformName": "Android",
     "platformVersion": "9",
@@ -33,7 +48,7 @@ caps_example = {
 }
 
 SSIM_threshold = 0.85  # SSIM值超过才认为两张图片相同
-HSV_threshold = 1  # HSV差异值
+HSV_threshold = 5  # HSV差异值
 position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现UI错误
 
 mis_no = 0  # 失配的图片序号
