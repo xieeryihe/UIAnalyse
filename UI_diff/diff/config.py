@@ -34,6 +34,21 @@ metronome_info = {
     "activityName": ".MainActivity"
 }
 
+calculator_info = {
+    "packageName": "com.inator.calculator",
+    "activityName": ".activities.MainActivity"
+}
+
+bible_info = {
+    "packageName": "org.hlwd.bible_multi_the_life",
+    "activityName": ".MainActivity"
+}
+
+todotree_info = {
+    "packageName": "nl.tsmeets.todotree",
+    "activityName": ".MainActivity"
+}
+
 caps_example = {
     "platformName": "Android",
     "platformVersion": "9",
@@ -57,5 +72,14 @@ diff_log = None  # log文件
 
 # 返回值
 RET_MISMATCH = -1  # 失配
-RET_SKIP = -2  # 跳过
+
+RET_CLASS_MISMATCH = -3  # 类不一致
+RET_TEXT_MISMATCH = -4  # 文本不一致
+RET_IMAGE_MISMATCH = -5  # 图像不一致
+RET_POSITION_MISMATCH = -6  # 位置不一致
+
 RET_OK = 1  # 没问题
+RET_SKIP = 2  # 跳过
+
+NODE1_REDUNDANCY = 10  # node1多余
+NODE2_REDUNDANCY = 11  # node2多余
