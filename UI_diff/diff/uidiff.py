@@ -40,6 +40,15 @@ def end():
     config.diff_log.close()
 
 
+def get_all_child(node):
+    """
+    返回目标元素的所有子元素，且子元素已逆序处理完毕
+    """
+    elements = node.find_elements(By.XPATH, "child::*/*")
+    elements.reverse()
+    return elements
+
+
 def get_bounds(node):
     """bounds字符串转换为数字数组"""
     bounds = node.get_attribute("bounds")  # bounds字符串
@@ -79,7 +88,14 @@ class Diff:
                 return True
         return False
 
-    def mismatch(self, node1, node2, mis_info="", rec_color=(0, 0, 255, 255), img_path="./img"):
+    def match_log(self, node1, node2):
+        # 如果检测没问题（那么都是一样的，取其中一个log即可）
+        self.mis_info = ""  # 错误信息置空（这一步也可以不要）
+        class1 = node1.get_attribute("class")
+        id2 = node2.get_attribute("resource-id")
+        config.diff_log.write(f"class:{class1}, id:{id2} compare OK...\n")
+
+    def mismatch_log(self, node1, node2, mis_info="", rec_color=(0, 0, 255, 255), img_path="./img"):
         """
         失配时，保存图片，get_screenshot_as_png()为四通道BGRA，A为255表示不透明
         node*参数为None时，表示不圈出
@@ -164,7 +180,8 @@ class Diff:
 
         result = [x < position_threshold for x in
                   [center_diff_x, center_diff_y, width_diff, height_diff]]
-        id1 = node1.get_attribute("resource-id")
+
+        # id1 = node1.get_attribute("resource-id")
         # if id1 and "recordProgressBar" in id1:
         #     print(width_diff, height_diff, center_diff_x, center_diff_y)
         #     print(result)
@@ -252,6 +269,7 @@ class Diff:
         """
         text1 = node1.get_attribute("text")
         text2 = node2.get_attribute("text")
+        # print(f"\t text1 is \"{text1}\", text2 is \"{text2}\".")
         if text1 != text2:
             self.mis_info = "text mismatch.\n"
             self.mis_info += f"\t text1 is \"{text1}\", text2 is \"{text2}\"."
@@ -259,61 +277,64 @@ class Diff:
             return RET_TEXT_MISMATCH
         return RET_OK
 
-    # def check_shift(self, node1, node2):
-    #     """
-    #     错位检测。但是如果像下面这样做会有问题：比如栈中有如下元素
-    #     | l1 | r2 |
-    #     |----|----|
-    #     | l2 | r3 |
-    #     lr代表左右，l2节点和右r2节点相同，但是比对的时候首先比对的是l1和r2，然后试图用l1的后继元素l2和r2比较
-    #     这时就可以匹配上了，但是如果图上的元素内部又包含其它层级，并且l1和r2的比较是在子层级比较时发现错误，
-    #     那么就没办法直接通过后继来比较了，因为你不知道l1里面到底包含了多少个元素，到底哪个是l1的后继大元素。
-    #     """
-    #     if self.list1:
-    #         node1_next = self.list1.pop()
-    #         print("node1:" + node1.get_attribute("text"))
-    #         print("node1_next:" + node1_next.get_attribute("text"))
-    #
-    #         if self.compare(node1_next, node2) > 0:
-    #             # 如果1的后继和2匹配，那么1为多出来的
-    #             print("node1 is redundant.\n")
-    #             node_class = node1.get_attribute("class")
-    #             node_id = node1.get_attribute("resource-id")
-    #             mis_info = "node1 is redundant.\n"
-    #             mis_info += f"\t class is :{node_class}, id is :{node_id}."
-    #             # 相当于剔除掉1
-    #             self.list1.append(node1_next)
-    #             self.list1.append(node2)
-    #             self.mismatch(node1, None, mis_info)
-    #             return NODE1_REDUNDANCY
-    #     else:
-    #         return RET_MISMATCH
-    #     if self.list2:
-    #         node2_next = self.list2.pop()
-    #         print("node2:" + node2.get_attribute("text"))
-    #         print("node2_next:" + node2_next.get_attribute("text"))
-    #         if self.compare(node1, node2_next) > 0:
-    #             # 如果1和2的后继匹配，那么2为多出来的
-    #             print("node2 is redundant.\n")
-    #             node_class = node2.get_attribute("class")
-    #             node_id = node2.get_attribute("resource-id")
-    #             mis_info = "node2 is redundant.\n"
-    #             mis_info += f"\t class is :{node_class}, id is :{node_id}."
-    #             # 相当于剔除掉2
-    #             self.list1.append(node1)
-    #             self.list2.append(node2_next)
-    #             self.mismatch(None, node2, mis_info)
-    #             return NODE2_REDUNDANCY
-    #     else:
-    #         return RET_MISMATCH
-    #     return RET_MISMATCH
+    def shift_diff(self, list1, list2):
+        """
+        错位检测，使用了向后探查一次，因此最多会圈出两处错误，而不是一连串错误。
+        """
+        # print("shift_diff")
+        list1.reverse()
+        list2.reverse()
+        i = 0
+        while True:
+            if i >= min(len(list1), len(list2)):
+                break
+            e1 = list1[i]
+            e2 = list2[i]
+            ret = self.diff([e1], [e2])
+            if ret < 0:
+                # 如果不一致，只尝试向后对比一次（并且也记录最多一次）
+                if i + 1 < len(list1):  # 如果list1存在后继元素
+                    e1_next = list1[i + 1]
+                    # 尝试匹配e1的后继和e2，但是不记录失配时的log信息（包括图片），因为这是相当于多做的
+                    ret = self.diff([e1_next], [e2], mismatch_log=False, position_skip=True)
+                    if ret > 0:  # 如果匹配，说明e1多余，删除，继续比对
+                        list1.pop(i)
+                    else:
 
-    @staticmethod
-    def push_all_child(node, node_list):
-        elements = node.find_elements(By.XPATH, "child::*/*")
-        elements.reverse()
-        for e in elements:
-            node_list.append(e)
+                        return RET_MISMATCH
+                # 如果e1后继和2不匹配，尝试e1和e2后继比较
+                if i + 1 < len(list2):
+                    e2_next = list2[i + 1]
+                    # 尝试匹配e1和e2后继
+                    ret = self.diff([e1], [e2_next], mismatch_log=False, position_skip=True)
+                    if ret > 0:  # 如果匹配，说明e2多余，删除，继续比对
+                        list2.pop(i)
+                    else:
+                        return RET_MISMATCH
+                # 如果向后探查一次仍没有办法匹配，则返回，后面元素不再比对
+                return RET_MISMATCH
+            i += 1
+        # 循环结束之后，如果还没有返回，那就是前几个都匹配，超出的部分不匹配
+        # 列表1超出的部分全部不匹配
+        if i < len(list1):
+            flag = 1  # 左列表冗余
+            target_list = list1
+        else:
+            flag = 2  # 右列表冗余
+            target_list = list2
+        while i < len(target_list):
+            # 对每个冗余节点记录
+            node = target_list[i]
+            node_class = node.get_attribute("class")
+            node_id = node.get_attribute("resource-id")
+            mis_info = "node is redundant.\n"
+            mis_info += f"\t class is :{node_class}, id is :{node_id}."
+            if flag == 1:
+                self.mismatch_log(node, None, mis_info=mis_info)
+            else:
+                self.mismatch_log(None, node, mis_info=mis_info)
+            i += 1
+        return RET_REDUNDANCY
 
     def compare(self, node1, node2, **kwargs):
         """
@@ -360,7 +381,9 @@ class Diff:
                 return ret
 
         # 位置检测
-        position_skip = kwargs.get("position_skip", False)
+        # if kwargs:
+        #     print(kwargs)
+        position_skip = kwargs.get('position_skip', False)
         if not position_skip:
             ret = self.position_diff(node1, node2)
             if ret < 0:
@@ -383,35 +406,35 @@ class Diff:
 
         return RET_OK
 
-    def diff(self, list1=None, list2=None):
+    def diff(self, list1=None, list2=None, mismatch_log=True, **kwargs):
+        """
+        迭代对比两个list的元素
+        """
+        ret = RET_OK
         if not list1:
             list1 = [self.root1]
         if not list2:
             list2 = [self.root2]
 
-        # print(type(self.driver1))
-        # print(type(self.root1))
-
         while list1 and list2:
             node1 = list1.pop()
             node2 = list2.pop()
             # compare
-            if self.compare(node1, node2) < 0:  # 如果比对发生错误
+            if self.compare(node1, node2, **kwargs) < 0:  # 如果比对发生错误
                 # mis_info = self.mis_info  # 记录原来的错误信息
                 # if self.check_shift(node1, node2) < 0:  # 如果不存在失配
                 #     self.mismatch(node1, node2, mis_info)  # 记录错误
-                self.mismatch(node1, node2, self.mis_info)
+                if mismatch_log:
+                    self.mismatch_log(node1, node2, self.mis_info)
+                ret = RET_MISMATCH
                 continue  # 不push子节点
             else:
-                # 如果检测没问题（那么都是一样的，取其中一个log即可）
-                class1 = node1.get_attribute("class")
-                id1 = node1.get_attribute("resource-id")
-                config.diff_log.write(f"class:{class1}, id:{id1} compare OK...\n")
+                self.match_log(node1, node2)
 
             # 经过测试，查找子元素耗时较长，下面代码用于多线程获取子元素
-
-            t1 = threading.Thread(target=self.push_all_child, args=(node1, list1,))
-            t2 = threading.Thread(target=self.push_all_child, args=(node2, list2,))
+            # 注意，args即使只有一个元素，也必须（最好）写成(node1,)形式，逗号和括号不要少
+            t1 = MyThread(target=get_all_child, args=(node1,))
+            t2 = MyThread(target=get_all_child, args=(node2,))
 
             t1.start()
             t2.start()
@@ -419,17 +442,57 @@ class Diff:
             t1.join()
             t2.join()
 
-            # 单线程
-            # elements1 = node1.find_elements(By.XPATH, "child::*/*")
-            # elements2 = node2.find_elements(By.XPATH, "child::*/*")
+            elements1 = t1.get_result()
+            elements2 = t2.get_result()
 
-            # for e1 in elements1:
-            #     self.list1.append(e1)
-            # for e2 in elements2:
-            #     self.list2.append(e2)
+            # 偏移检测部分
+            if elements1:
+                child_num1 = len(elements1)
+            else:
+                child_num1 = 0
+                elements1 = []
+
+            if elements2:
+                child_num2 = len(elements2)
+            else:
+                child_num2 = 0
+                elements2 = []
+
+            # 如果不加偏移检测，就会圈出多个框
+            if child_num1 != child_num2:
+                self.shift_diff(elements1, elements2)
+                continue
+
+            for e in elements1:
+                list1.append(e)
+            for e in elements2:
+                list2.append(e)
+
+        return ret
 
 
 def diff_all(device_list):
     # 两两对比
     for i in range(len(device_list) - 1):
         Diff(device_list[i].driver, device_list[i + 1].driver).diff()
+
+
+class MyThread(threading.Thread):
+    """重写多线程，使其能够有返回值"""
+
+    def __init__(self, target=None, args=()):
+        super().__init__()
+        self.result = None
+        self.func = target
+        self.args = args
+
+    def run(self):
+        self.result = self.func(*self.args)
+
+    def get_result(self):
+        # 如果子线程不使用join方法，此处可能会报没有self.result的错误
+        try:
+            return self.result
+        except Exception as e:
+            self.result = None
+            print(e)

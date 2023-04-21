@@ -49,6 +49,18 @@ todotree_info = {
     "activityName": ".MainActivity"
 }
 
+# 应用名：Minimal
+minimaltodo_info = {
+    "packageName": "com.rubenroy.minimaltodo",
+    "activityName": ".MainActivity"
+}
+
+# 应用名：To-Do List
+todolist_info = {
+    "packageName": "org.secuso.privacyfriendlytodolist",
+    "activityName": ".view.SplashActivity"
+}
+
 caps_example = {
     "platformName": "Android",
     "platformVersion": "9",
@@ -68,6 +80,9 @@ position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现U
 
 mis_no = 0  # 失配的图片序号
 
+match_no = 0  # 匹配的图片序号
+total_no = 0  # 总共比对的元素数
+
 diff_log = None  # log文件
 
 # 返回值
@@ -81,5 +96,6 @@ RET_POSITION_MISMATCH = -6  # 位置不一致
 RET_OK = 1  # 没问题
 RET_SKIP = 2  # 跳过
 
-NODE1_REDUNDANCY = 10  # node1多余
-NODE2_REDUNDANCY = 11  # node2多余
+RET_REDUNDANCY = 9  # 有节点多余
+RET_NODE1_REDUNDANCY = 10  # node1多余
+RET_NODE2_REDUNDANCY = 11  # node2多余

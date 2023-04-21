@@ -40,7 +40,7 @@ def single_test():
 if __name__ == '__main__':
     start_time = time.time()
 
-    app_test(config.soundrecorder_info)
+    app_test(config.todolist_info)
 
     end_time = time.time()
 
