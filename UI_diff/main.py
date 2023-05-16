@@ -17,30 +17,37 @@ test_device_list = [
 
 def app_test(info):
     uidiff.init()
-
     devices = Devices()
 
-    device_list = devices.start_drivers(info)
-
+    device_list = devices.start_drivers(info, implicitly_time=0.1)
     uidiff.diff_all(device_list)
 
     devices.stop_drivers()
-
     uidiff.end()
 
 
-def single_test():
+def start_time_cal():
+    time1 = time.time()
+
+    uidiff.init()
     devices = Devices()
-    devices.start_drivers(config.soundrecorder_info)
-    # devices.temp_test()
+    devices.start_drivers(config.trivia_info)
+
+    time2 = time.time()
+
     devices.stop_drivers()
     uidiff.end()
+
+    time3 = time.time()
+    print(time2 - time1)
+    print(time3 - time2)
 
 
 if __name__ == '__main__':
     start_time = time.time()
 
-    app_test(config.todolist_info)
+    app_test(config.soundrecorder_info)
+    # start_time_cal()
 
     end_time = time.time()
 

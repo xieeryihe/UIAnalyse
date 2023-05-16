@@ -3,11 +3,12 @@ import os
 import re
 import threading
 
-from diff.image import *
-from skimage.metrics import structural_similarity
 from selenium.webdriver.common.by import By
-from diff.config import *
+from skimage.metrics import structural_similarity
+
 from diff import config
+from diff.config import *
+from diff.image import *
 
 
 def init():
@@ -67,12 +68,12 @@ class Diff:
     white_list = {
         "class": [
             "RecyclerView",
-            "HorizontalScrollView",
-            "ListView"
+            # "HorizontalScrollView",
+            # "ListView"
         ],
         "resource-id": [
-            "input",
-            "search"
+            #     "input",
+            #     "search"
         ]
     }
 
@@ -88,12 +89,15 @@ class Diff:
                 return True
         return False
 
-    def match_log(self, node1, node2):
+    def match_log(self, node1, node2, log_info=""):
         # 如果检测没问题（那么都是一样的，取其中一个log即可）
         self.mis_info = ""  # 错误信息置空（这一步也可以不要）
         class1 = node1.get_attribute("class")
         id2 = node2.get_attribute("resource-id")
-        config.diff_log.write(f"class:{class1}, id:{id2} compare OK...\n")
+        if log_info:
+            config.diff_log.write(log_info)
+        else:
+            config.diff_log.write(f"class:{class1}, id:{id2} compare OK...\n")
 
     def mismatch_log(self, node1, node2, mis_info="", rec_color=(0, 0, 255, 255), img_path="./img"):
         """
@@ -243,23 +247,42 @@ class Diff:
         rgb2 = cv2.cvtColor(image2_cv, cv2.COLOR_BGRA2RGB)
         hsv1 = cv2.cvtColor(rgb1, cv2.COLOR_RGB2HSV)
         hsv2 = cv2.cvtColor(rgb2, cv2.COLOR_RGB2HSV)
-        hsv_diff = cv2.absdiff(hsv1, hsv2)
-        hsv_mean_diff = np.mean(hsv_diff)
 
-        # print("The SSIM value is ", ssim_value)
-        # print("hsv_mean_diff is ", hsv_mean_diff)
-        return ssim_value, hsv_mean_diff
+        hsv_diff = cv2.absdiff(hsv1, hsv2)
+
+        return ssim_value, hsv_diff
 
     def image_diff(self, node1, node2):
         """
         图像节点对比
         """
-        ssim_value, hsv_mean_diff = self.image_compare(node1, node2)
-        if ssim_value < SSIM_threshold or hsv_mean_diff > HSV_threshold:
-            # print("img mismatch" + str(ssim_value))
+        ssim_value, hsv_diff = self.image_compare(node1, node2)
+        # 平均差异
+        hsv_mean_diff = np.mean(hsv_diff)
+        hsv_diff_count = np.count_nonzero(hsv_diff > config.HSV_peak_diff_threshold)
+        total_pixels = hsv_diff.shape[0] * hsv_diff.shape[1] * hsv_diff.shape[2]
+        # 峰值差异，指像素差异超过阈值所占的比例
+        hsv_peak_per = hsv_diff_count / total_pixels
+        # print(node1.get_attribute("resource-id"))
+        # print("SSIM value is ", ssim_value)
+        # print("hsv_mean_diff is ", hsv_mean_diff)
+        # print("hsv_peak_per is ", hsv_peak_per)
+        # print("\n")
+
+        # if ssim_value < SSIM_threshold \
+        #         or hsv_mean_diff > HSV_mean_diff_threshold \
+        #         or hsv_peak_per > HSV_peak_per_threshold:
+        #     # print("img mismatch " + str(ssim_value))
+        #     self.mis_info = "image mismatch.\n"
+        #     self.mis_info += f"\tSSIM is :{ssim_value:.2f}, " \
+        #                      f"HSV mean diff is :{hsv_mean_diff:.2f}, " \
+        #                      f"HSV peak percent is {hsv_peak_per}."
+        #     # self.mismatch(node1, node2, mis_info)
+        #     return RET_IMAGE_MISMATCH
+        if ssim_value < SSIM_threshold or hsv_mean_diff > HSV_mean_diff_threshold:
             self.mis_info = "image mismatch.\n"
-            self.mis_info += f"\tSSIM is :{ssim_value:.2f}, HSV diff is :{hsv_mean_diff:.2f}.\n"
-            # self.mismatch(node1, node2, mis_info)
+            self.mis_info += f"\tSSIM is :{ssim_value:.2f}, " \
+                             f"HSV mean diff is :{hsv_mean_diff:.2f}."
             return RET_IMAGE_MISMATCH
         return RET_OK
 
@@ -290,7 +313,9 @@ class Diff:
                 break
             e1 = list1[i]
             e2 = list2[i]
-            ret = self.diff([e1], [e2])
+            # print(f"compare: {i}")
+            ret = self.diff([e1], [e2], position_skip=True)
+            # print(f" ret is {ret}")
             if ret < 0:
                 # 如果不一致，只尝试向后对比一次（并且也记录最多一次）
                 if i + 1 < len(list1):  # 如果list1存在后继元素
@@ -299,20 +324,19 @@ class Diff:
                     ret = self.diff([e1_next], [e2], mismatch_log=False, position_skip=True)
                     if ret > 0:  # 如果匹配，说明e1多余，删除，继续比对
                         list1.pop(i)
-                    else:
+                        continue
 
-                        return RET_MISMATCH
                 # 如果e1后继和2不匹配，尝试e1和e2后继比较
                 if i + 1 < len(list2):
                     e2_next = list2[i + 1]
-                    # 尝试匹配e1和e2后继
                     ret = self.diff([e1], [e2_next], mismatch_log=False, position_skip=True)
-                    if ret > 0:  # 如果匹配，说明e2多余，删除，继续比对
+                    if ret > 0:  # 如果匹配，说明e2多余
                         list2.pop(i)
-                    else:
-                        return RET_MISMATCH
+                        continue
+
                 # 如果向后探查一次仍没有办法匹配，则返回，后面元素不再比对
                 return RET_MISMATCH
+            # 如果匹配，继续向后
             i += 1
         # 循环结束之后，如果还没有返回，那就是前几个都匹配，超出的部分不匹配
         # 列表1超出的部分全部不匹配
@@ -329,9 +353,9 @@ class Diff:
             node_id = node.get_attribute("resource-id")
             mis_info = "node is redundant.\n"
             mis_info += f"\t class is :{node_class}, id is :{node_id}."
-            if flag == 1:
+            if flag == 1:  # 左列表剩余元素冗余
                 self.mismatch_log(node, None, mis_info=mis_info)
-            else:
+            else:  # 右列表剩余元素冗余
                 self.mismatch_log(None, node, mis_info=mis_info)
             i += 1
         return RET_REDUNDANCY
@@ -419,17 +443,23 @@ class Diff:
         while list1 and list2:
             node1 = list1.pop()
             node2 = list2.pop()
+
             # compare
-            if self.compare(node1, node2, **kwargs) < 0:  # 如果比对发生错误
-                # mis_info = self.mis_info  # 记录原来的错误信息
-                # if self.check_shift(node1, node2) < 0:  # 如果不存在失配
-                #     self.mismatch(node1, node2, mis_info)  # 记录错误
+            temp_ret = self.compare(node1, node2, **kwargs)
+            if temp_ret < 0:  # 如果比对发生错误
                 if mismatch_log:
                     self.mismatch_log(node1, node2, self.mis_info)
-                ret = RET_MISMATCH
+                ret = temp_ret  # 只要有一个错，就返回错
                 continue  # 不push子节点
             else:
-                self.match_log(node1, node2)
+                if ret == RET_SKIP:
+                    # node_class = node1.get_attribute("class")
+                    # node_id = node1.get_attribute("resource-id")
+                    # log_info = f"skip node class : {node_class}, node id : {node_id}.\n"
+                    # self.match_log(node1, node2, log_info)
+                    self.match_log(node1, node2, "skip node\n")
+                else:
+                    self.match_log(node1, node2)
 
             # 经过测试，查找子元素耗时较长，下面代码用于多线程获取子元素
             # 注意，args即使只有一个元素，也必须（最好）写成(node1,)形式，逗号和括号不要少

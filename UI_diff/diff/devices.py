@@ -1,7 +1,6 @@
 from appium import webdriver
 from selenium.common import NoSuchElementException
 
-import diff.image
 from diff.server import *
 from diff.uidiff import *
 
@@ -123,9 +122,10 @@ class Devices:
             # print("NoSuchElementException")
             pass
 
-    def start_drivers(self, app_info, device_dict=None, if_background=False):
+    def start_drivers(self, app_info, device_dict=None, if_background=False, implicitly_time=5):
         """
         初始化设备并连接到服务器，打开对应的应用
+        :param implicitly_time: 找不到元素/执行不了操作时，等待的时长（implicitly_wait(num)里传入的参数)
         :param if_background: 是否在后台运行，默认不在后台运行
         :param device_dict: 要启动的设备列表，一般形式为：
         dict{
@@ -149,24 +149,26 @@ class Devices:
             target_num = self.device_num
             target_devices = self.devices_dict
         servers = appium_server.start_servers(
-            server_num=target_num, devices_dict=target_devices, if_background=if_background)
+            server_num=target_num, devices_dict=target_devices,
+            if_background=if_background)
         # 连接devices
         for (device_info, server_info) in zip(self.devices_dict, servers):
-            t = threading.Thread(target=self.start_driver, args=(device_info, server_info, app_info))
+            t = threading.Thread(target=self.start_driver,
+                                 args=(device_info, server_info, app_info, implicitly_time))
             self.threads.append(t)
             t.start()
         for t in self.threads:
             t.join()
         return self.devices
 
-    def start_driver(self, device_info, server_info, app_info):
+    def start_driver(self, device_info, server_info, app_info, implicitly_time=5):
         platform_version = device_info["platformVersion"]
         device_name = device_info["deviceName"]
         host = server_info["host"]
         port = server_info["port"]
         caps = get_caps(platform_version, device_name, app_info)
         driver = webdriver.Remote("http://{}:{}/wd/hub".format(host, port), caps)
-        driver.implicitly_wait(5)
+        driver.implicitly_wait(implicitly_time)
         device = Device(platform_version, device_name, server_info, driver)
         self.devices.append(device)
 

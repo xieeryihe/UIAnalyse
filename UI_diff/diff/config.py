@@ -5,10 +5,12 @@ trivia_info = {
     "packageName": "com.example.android.navigation",
     "activityName": ".MainActivity"
 }
+
 zhihu_info = {
     "packageName": "com.zhihu.android",
     "activityName": ".app.ui.activity.MainActivity"
 }
+
 bilibili_info = {
     "packageName": "tv.danmaku.bili",
     "activityName": ".MainActivityV2"
@@ -29,6 +31,7 @@ ruslin_info = {
     "activityName": ".MainActivity"
 }
 
+# 节拍器
 metronome_info = {
     "packageName": "de.moekadu.metronome",
     "activityName": ".MainActivity"
@@ -61,6 +64,25 @@ todolist_info = {
     "activityName": ".view.SplashActivity"
 }
 
+# 天气软件
+clima_info = {
+    "packageName": "co.prestosole.clima",
+    "activityName": "io.flutter.embedding.android.FlutterActivity"
+}
+
+# 音效软件
+noice_info = {
+    "packageName": "com.github.ashutoshgngwr.noice",
+    "activityName": ".activity.MainActivity"
+}
+
+# 摩尔斯电码
+morse_info = {
+    "packageName": "rocks.poopjournal.morse",
+    "activityName": ".MainActivity"
+}
+
+
 caps_example = {
     "platformName": "Android",
     "platformVersion": "9",
@@ -74,8 +96,11 @@ caps_example = {
     "automationName": "UiAutomator2"
 }
 
-SSIM_threshold = 0.85  # SSIM值超过才认为两张图片相同
-HSV_threshold = 5  # HSV差异值
+SSIM_threshold = 0.80  # SSIM值超过才认为两张图片相同
+HSV_mean_diff_threshold = 7  # HSV平均差异阈值
+HSV_peak_diff_threshold = 20  # HSV峰值差异阈值
+HSV_peak_per_threshold = 0.05  # HSV峰值差异占比阈值
+
 position_threshold = 0.1  # 位置百分比差距阈值，超过则认为出现UI错误
 
 mis_no = 0  # 失配的图片序号
@@ -96,6 +121,6 @@ RET_POSITION_MISMATCH = -6  # 位置不一致
 RET_OK = 1  # 没问题
 RET_SKIP = 2  # 跳过
 
-RET_REDUNDANCY = 9  # 有节点多余
-RET_NODE1_REDUNDANCY = 10  # node1多余
-RET_NODE2_REDUNDANCY = 11  # node2多余
+RET_REDUNDANCY = -9  # 有节点多余
+RET_NODE1_REDUNDANCY = -10  # node1多余
+RET_NODE2_REDUNDANCY = -11  # node2多余
